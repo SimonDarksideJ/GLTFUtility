@@ -11,27 +11,27 @@ using UnityEngine;
 namespace Siccity.GLTFUtility {
 	/// <summary> API used for importing .gltf and .glb files </summary>
 	public static class Importer {
-		public static GameObject LoadFromFile(string filepath, Format format = Format.AUTO) {
+		public static GameObject LoadFromFile(string path, Format format = Format.AUTO) {
 			GLTFAnimation.ImportResult[] animations;
-			return LoadFromFile(filepath, new ImportSettings(), out animations, format);
+			return LoadFromFile(path, new ImportSettings(), out animations, format);
 		}
 
-		public static GameObject LoadFromFile(string filepath, ImportSettings importSettings, Format format = Format.AUTO) {
+		public static GameObject LoadFromFile(string path, ImportSettings importSettings, Format format = Format.AUTO) {
 			GLTFAnimation.ImportResult[] animations;
-			return LoadFromFile(filepath, importSettings, out animations, format);
+			return LoadFromFile(path, importSettings, out animations, format);
 		}
 
-		public static GameObject LoadFromFile(string filepath, ImportSettings importSettings, out GLTFAnimation.ImportResult[] animations, Format format = Format.AUTO) {
+		public static GameObject LoadFromFile(string path, ImportSettings importSettings, out GLTFAnimation.ImportResult[] animations, Format format = Format.AUTO) {
 			if (format == Format.GLB) {
-				return ImportGLB(filepath, importSettings, out animations);
+				return ImportGLB(path, importSettings, out animations);
 			} else if (format == Format.GLTF) {
-				return ImportGLTF(filepath, importSettings, out animations);
+				return ImportGLTF(path, importSettings, out animations);
 			} else {
-				string extension = Path.GetExtension(filepath).ToLower();
-				if (extension == ".glb") return ImportGLB(filepath, importSettings, out animations);
-				else if (extension == ".gltf") return ImportGLTF(filepath, importSettings, out animations);
+				string extension = importSettings.localFiles ? Path.GetExtension(path).ToLower() : path.Substring(path.Length - 4, 4);
+				if (extension == ".glb") return ImportGLB(path, importSettings, out animations);
+				else if (extension == ".gltf") return ImportGLTF(path, importSettings, out animations);
 				else {
-					Debug.Log("Extension '" + extension + "' not recognized in " + filepath);
+					Debug.Log("Extension '" + extension + "' not recognized in " + path);
 					animations = null;
 					return null;
 				}
@@ -50,23 +50,24 @@ namespace Siccity.GLTFUtility {
 			return ImportGLB(bytes, importSettings, out animations);
 		}
 
-		public static void LoadFromFileAsync(string filepath, ImportSettings importSettings, Action<GameObject, GLTFAnimation.ImportResult[]> onFinished, Action<float> onProgress = null) {
-			string extension = Path.GetExtension(filepath).ToLower();
-			if (extension == ".glb") ImportGLBAsync(filepath, importSettings, onFinished, onProgress);
-			else if (extension == ".gltf") ImportGLTFAsync(filepath, importSettings, onFinished, onProgress);
+		public static void LoadFromFileAsync(string path, ImportSettings importSettings, Action<GameObject, GLTFAnimation.ImportResult[]> onFinished, Action<float> onProgress = null)
+		{
+			string extension = importSettings.localFiles ? Path.GetExtension(path).ToLower() : path.Substring(path.Length - 4, 4);
+			if (extension == ".glb") ImportGLBAsync(path, importSettings, onFinished, onProgress);
+			else if (extension == ".gltf") ImportGLTFAsync(path, importSettings, onFinished, onProgress);
 			else {
-				Debug.Log("Extension '" + extension + "' not recognized in " + filepath);
+				Debug.Log("Extension '" + extension + "' not recognized in " + path);
 				onFinished(null, null);
 			}
 		}
 
 #region GLB
-		private static GameObject ImportGLB(string filepath, ImportSettings importSettings, out GLTFAnimation.ImportResult[] animations) {
-			FileStream stream = File.OpenRead(filepath);
+		private static GameObject ImportGLB(string path, ImportSettings importSettings, out GLTFAnimation.ImportResult[] animations) {
+			FileStream stream = File.OpenRead(path);
 			long binChunkStart;
 			string json = GetGLBJson(stream, out binChunkStart);
 			GLTFObject gltfObject = JsonConvert.DeserializeObject<GLTFObject>(json);
-			return gltfObject.LoadInternal(filepath, null, binChunkStart, importSettings, out animations);
+			return gltfObject.LoadInternal(path, null, binChunkStart, importSettings, out animations);
 		}
 
 		private static GameObject ImportGLB(byte[] bytes, ImportSettings importSettings, out GLTFAnimation.ImportResult[] animations) {
@@ -77,11 +78,11 @@ namespace Siccity.GLTFUtility {
 			return gltfObject.LoadInternal(null, bytes, binChunkStart, importSettings, out animations);
 		}
 
-		public static void ImportGLBAsync(string filepath, ImportSettings importSettings, Action<GameObject, GLTFAnimation.ImportResult[]> onFinished, Action<float> onProgress = null) {
-			FileStream stream = File.OpenRead(filepath);
+		public static void ImportGLBAsync(string path, ImportSettings importSettings, Action<GameObject, GLTFAnimation.ImportResult[]> onFinished, Action<float> onProgress = null) {
+			FileStream stream = File.OpenRead(path);
 			long binChunkStart;
 			string json = GetGLBJson(stream, out binChunkStart);
-			LoadAsync(json, filepath, null, binChunkStart, importSettings, onFinished, onProgress).RunCoroutine();
+			LoadAsync(json, path, null, binChunkStart, importSettings, onFinished, onProgress).RunCoroutine();
 		}
 
 		public static void ImportGLBAsync(byte[] bytes, ImportSettings importSettings, Action<GameObject, GLTFAnimation.ImportResult[]> onFinished, Action<float> onProgress = null) {
@@ -133,19 +134,19 @@ namespace Siccity.GLTFUtility {
 		}
 #endregion
 
-		private static GameObject ImportGLTF(string filepath, ImportSettings importSettings, out GLTFAnimation.ImportResult[] animations) {
-			string json = File.ReadAllText(filepath);
+		private static GameObject ImportGLTF(string path, ImportSettings importSettings, out GLTFAnimation.ImportResult[] animations) {
+			string json = File.ReadAllText(path);
 
 			// Parse json
 			GLTFObject gltfObject = JsonConvert.DeserializeObject<GLTFObject>(json);
-			return gltfObject.LoadInternal(filepath, null, 0, importSettings, out animations);
+			return gltfObject.LoadInternal(path, null, 0, importSettings, out animations);
 		}
 
-		public static void ImportGLTFAsync(string filepath, ImportSettings importSettings, Action<GameObject, GLTFAnimation.ImportResult[]> onFinished, Action<float> onProgress = null) {
-			string json = File.ReadAllText(filepath);
+		public static void ImportGLTFAsync(string path, ImportSettings importSettings, Action<GameObject, GLTFAnimation.ImportResult[]> onFinished, Action<float> onProgress = null) {
+			string json = File.ReadAllText(path);
 
 			// Parse json
-			LoadAsync(json, filepath, null, 0, importSettings, onFinished, onProgress).RunCoroutine();
+			LoadAsync(json, path, null, 0, importSettings, onFinished, onProgress).RunCoroutine();
 		}
 
 		public abstract class ImportTask<TReturn> : ImportTask {
@@ -182,14 +183,14 @@ namespace Siccity.GLTFUtility {
 		}
 
 #region Sync
-		private static GameObject LoadInternal(this GLTFObject gltfObject, string filepath, byte[] bytefile, long binChunkStart, ImportSettings importSettings, out GLTFAnimation.ImportResult[] animations) {
+		private static GameObject LoadInternal(this GLTFObject gltfObject, string path, byte[] bytefile, long binChunkStart, ImportSettings importSettings, out GLTFAnimation.ImportResult[] animations) {
 			// directory root is sometimes used for loading buffers from containing file, or local images
-			string directoryRoot = filepath != null ? Directory.GetParent(filepath).ToString() + "/" : null;
+			string directoryRoot = path != null ? Directory.GetParent(path).ToString() + "/" : null;
 
 			importSettings.shaderOverrides.CacheDefaultShaders();
 
 			// Import tasks synchronously
-			GLTFBuffer.ImportTask bufferTask = new GLTFBuffer.ImportTask(gltfObject.buffers, filepath, bytefile, binChunkStart);
+			GLTFBuffer.ImportTask bufferTask = new GLTFBuffer.ImportTask(gltfObject.buffers, path, bytefile, binChunkStart);
 			bufferTask.RunSynchronously();
 			GLTFBufferView.ImportTask bufferViewTask = new GLTFBufferView.ImportTask(gltfObject.bufferViews, bufferTask);
 			bufferViewTask.RunSynchronously();
@@ -218,7 +219,7 @@ namespace Siccity.GLTFUtility {
 #endregion
 
 #region Async
-		private static IEnumerator LoadAsync(string json, string filepath, byte[] bytefile, long binChunkStart, ImportSettings importSettings, Action<GameObject, GLTFAnimation.ImportResult[]> onFinished, Action<float> onProgress = null) {
+		private static IEnumerator LoadAsync(string json, string path, byte[] bytefile, long binChunkStart, ImportSettings importSettings, Action<GameObject, GLTFAnimation.ImportResult[]> onFinished, Action<float> onProgress = null) {
 			// Threaded deserialization
 			Task<GLTFObject> deserializeTask = new Task<GLTFObject>(() => JsonConvert.DeserializeObject<GLTFObject>(json));
 			deserializeTask.Start();
@@ -226,14 +227,14 @@ namespace Siccity.GLTFUtility {
 			GLTFObject gltfObject = deserializeTask.Result;
 
 			// directory root is sometimes used for loading buffers from containing file, or local images
-			string directoryRoot = filepath != null ? Directory.GetParent(filepath).ToString() + "/" : null;
+			string directoryRoot = path != null ? Directory.GetParent(path).ToString() + "/" : null;
 
 			importSettings.shaderOverrides.CacheDefaultShaders();
 
 			// Setup import tasks
 			List<ImportTask> importTasks = new List<ImportTask>();
 
-			GLTFBuffer.ImportTask bufferTask = new GLTFBuffer.ImportTask(gltfObject.buffers, filepath, bytefile, binChunkStart);
+			GLTFBuffer.ImportTask bufferTask = new GLTFBuffer.ImportTask(gltfObject.buffers, path, bytefile, binChunkStart);
 			importTasks.Add(bufferTask);
 			GLTFBufferView.ImportTask bufferViewTask = new GLTFBufferView.ImportTask(gltfObject.bufferViews, bufferTask);
 			importTasks.Add(bufferViewTask);
